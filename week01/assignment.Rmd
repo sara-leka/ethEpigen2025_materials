@@ -1,0 +1,17 @@
+---
+title: "ethEpigen2025 Week 1 Assignment"
+output: html_document
+date: "2025-02-24"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(epiwraps)
+```
+
+```{r}
+sessionInfo()
+```
