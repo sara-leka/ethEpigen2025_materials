@@ -1,0 +1,120 @@
+---
+title: "Assignment Week 2"
+author: "Sara Leka"
+output: html_document
+date: "2025-03-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub) 
+  library(ensembldb)     
+  library(GenomicRanges)  
+  library(epiwraps)      
+  library(ggplot2)
+  library(rtracklayer)
+})
+```
+
+---
+Mus Musculus EnsDb object, version 102, build GRCm38
+---
+
+```{r}
+ah <- AnnotationHub()
+query_result1 <- query(ah, c("EnsDb", "Mus musculus", "102", "GRCm38"))
+query_result1
+```
+
+```{r}
+mouse_ensdb <- ah[["AH89211"]]
+mouse_ensdb
+```
+
+---
+Mus Musculus TwoBit object, build GRCm38
+---
+
+```{r}
+query_result2 <- query(ah, c("dna_sm", "Mus musculus", "GRCm38"))
+query_result2
+```
+
+```{r}
+mouse_2bit <- ah[["AH49775"]]
+mouse_2bit
+```
+---
+Drosophila Melanogaster TwoBit object, build BDGP6
+---
+
+```{r}
+query_result3 <- query(ah, c("dna_sm", "Drosophila", "BDGP6"))
+query_result3
+```
+
+```{r}
+dros_2bit <- ah[["AH49674"]]
+dros_2bit
+```
+
+---
+Mus Musculus EnsDb object, build GRCm38 TASKS
+1. How many different ensembl gene IDs and gene symbols are there for protein-coding genes?
+2. Plot the distribution of the (spliced) length of protein-coding transcripts
+---
+
+---
+1.
+---
+```{r}
+genes <- genes(mouse_ensdb)
+prcg <- genes[which(genes$gene_biotype=="protein_coding")]
+unique_gene_ids <- length(unique(prcg$gene_id))
+unique_gene_symbols <- length(unique(prcg$gene_name))
+
+cat("Unique gene IDs for protein-coding genes:", unique_gene_ids, "\n")
+cat("Unique gene symbols for protein-coding genes:", unique_gene_symbols, "\n")
+
+```
+---
+2.
+---
+
+```{r}
+transcripts <- transcripts(mouse_ensdb)
+prc_trans <- transcripts[which(transcripts$tx_biotype=="protein_coding")]
+#length(prc_trans)  
+#head(prc_trans$tx_id)  
+
+exons_by_trans <- exonsBy(mouse_ensdb, by = "tx")
+#length(exons_by_trans) 
+exons_prc <- exons_by_trans[names(exons_by_trans) %in% prc_trans$tx_id]
+#length(exons_prc) 
+
+transcript_lengths <- sapply(exons_prc, function(exon_gr) sum(width(exon_gr)))
+```
+---
+This first plot shows the frequencies of the various transcript lengths (as required by the task). We can see that the most frequent length is not very high. The second additional plot instead shows for each transcript the length associated with it. We can see that indeed the length, except for some outliers, stays on the lower end.
+---
+```{r}
+ggplot() +
+  geom_histogram(aes(x = transcript_lengths), binwidth = 1000, fill = "blue", color = "black") +
+  labs(title = "Distribution of Spliced Lengths of Protein-Coding Transcripts",
+       x = "Transcript length", y = "Frequency") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(data = data.frame(Transcript = names(transcript_lengths), Length = transcript_lengths)) +
+  geom_bar(aes(x = Transcript, y = Length), stat = "identity", fill = "blue", color = "blue") +
+  labs(title = "Spliced Lengths for each Protein-Coding Transcripts", x = "Transcript ID", y = "Spliced Length") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+```
+
