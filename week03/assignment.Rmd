@@ -1,0 +1,106 @@
+---
+title: "Assignment Week 3"
+author: "Sara Leka"
+date: "2025-03-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(Rsubread)     
+  library(rtracklayer)   
+  library(Biostrings)    
+  library(Rfastp)        
+  library(epiwraps)
+  library(ensembldb)
+})
+```
+
+## Creating necessary directories
+```{r}
+dir.create("raw")
+dir.create("rfastp.trimmed")
+dir.create("aligned")
+dir.create("peaks")
+```
+
+
+## Downloading the data
+Drosophila ChIP-seq for the protein CTCF
+```{r, eval=FALSE}
+download.file(
+  url = "https://www.encodeproject.org/files/ENCFF127RRR/@@download/ENCFF127RRR.fastq.gz",
+  destfile = "raw/CTCF.fastq.gz",
+  mode = "wb"
+)
+```
+
+## QC and Trimming with R and Rfastp
+```{r}
+qc <- Rfastp::rfastp("raw/CTCF.fastq.gz", thread = 4, overrepresentationAnalysis = TRUE, outputFastq = "trimmed/CTCF.fastq.gz")
+
+Rfastp::curvePlot(qc, curve = "content_curves")
+```
+##Alignment
+
+```{r}
+ah <- AnnotationHub()
+genome <- ah[["AH49674"]]
+dir.create("BDGP6_genome")
+export(import.2bit(genome), "BDGP6_genome/genome.fasta.gz",compress = TRUE)
+Rsubread::buildindex("BDGP6_genome/rsubread", reference ="BDGP6_genome/genome.fasta.gz")
+```
+
+```{r}
+align.stats <- Rsubread::align(
+  index = "BDGP6_genome/rsubread",
+  readfile1 = "trimmed/CTCF.fastq.gz_R1.fastq.gz",
+  output_file = "aligned/CTCF.bam",
+  nthreads = 6,
+  sortReadsByCoordinates = TRUE
+)
+
+align.stats
+```
+
+# 1) How many reads and what percentage were mapped?
+```{r}
+cat("Total reads:", align.stats$CTCF.bam[1], "\n")
+cat("Mapped reads:", align.stats$CTCF.bam[2], "\n")
+cat("Mapping percentage:", (align.stats$CTCF.bam[2]/align.stats$CTCF.bam[1]) * 100, "%\n")
+```
+
+## Peak calling
+
+```{r}
+BiocManager::install("ETHZ-INS/epiwraps", ref="callpeaks")
+```
+
+```{r}
+peaks <- callPeaks(bam="aligned/CTCF.bam")
+```
+## Annotation of the peaks with EnsDb genome of Drosophila Melanogaster
+
+```{r message=FALSE, warning = FALSE}
+ah <- AnnotationHub()
+query(ah, c("Drosophila Melanogaster", "EnsDb"))
+ensdb<-ah[["AH119285"]]
+genes <- genes(ensdb)
+prcg<-genes[which(genes$gene_biotype=="protein_coding")]
+
+overlaps <- findOverlaps(peaks, prcg)
+overlapping_peaks <- peaks[queryHits(overlaps)]
+overlapping_peaks[1]
+```
+
+# 2) Plot the signal around one of the peaks that is located inside a gene
+
+```{r}
+plotSignalTracks(list(CTCF = "aligned/CTCF.bam", peaks=overlapping_peaks), region = overlapping_peaks[1],
+                 extend=1000, tracks.params=list(ylim=c(0, 25)))
+```
