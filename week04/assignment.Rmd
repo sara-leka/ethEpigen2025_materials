@@ -1,0 +1,101 @@
+---
+title: "Assignment Week 4"
+author: "Sara Leka"
+date: "2025-03-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=FALSE, include=TRUE}
+suppressPackageStartupMessages({
+  library(rtracklayer)
+  library(epiwraps)
+  library(GenomicRanges)
+  library(R.utils)
+})
+```
+
+## 1. Download peaks for the required histone modifications in mESC
+
+### Transcription factor p300
+```{r, eval=FALSE}
+download.file("https://www.encodeproject.org/files/ENCFF460EOA/@@download/ENCFF460EOA.bed.gz", "p300.bed.gz")
+gunzip("p300.bed.gz", remove=FALSE)
+```
+
+### Histone modification mark H3K4me3
+```{r, eval=FALSE}
+download.file("https://www.encodeproject.org/files/ENCFF422YVG/@@download/ENCFF422YVG.bed.gz", "H3K4me3.bed.gz")
+gunzip("H3K4me3.bed.gz", remove=FALSE)
+```
+
+### Histone modification mark H3K4me1
+```{r, eval=FALSE}
+download.file("https://www.encodeproject.org/files/ENCFF771SBG/@@download/ENCFF771SBG.bed.gz", "H3K4me1.bed.gz")
+gunzip("H3K4me1.bed.gz")
+```
+
+### Histone modification mark H3K27ac
+```{r, eval=FALSE}
+download.file("https://www.encodeproject.org/files/ENCFF824OIP/@@download/ENCFF824OIP.bed.gz", "H3K27ac.bed.gz")
+gunzip("H3K27ac.bed.gz")
+```
+
+### Histone modification mark H3K27me3
+```{r, eval=FALSE}
+download.file("https://www.encodeproject.org/files/ENCFF558YNC/@@download/ENCFF558YNC.bed.gz", "H3K27me3.bed.gz")
+gunzip("H3K27me3.bed.gz", remove=FALSE)
+```
+
+### Importing peaks
+```{r}
+p300 <- rtracklayer::import("p300.bed", format="narrowPeak")
+head(p300)
+```
+
+```{r}
+H3K4me3 <- rtracklayer::import("H3K4me3.bed", format ="narrowPeak")
+head(H3K4me3)
+```
+
+```{r}
+H3K4me1 <- rtracklayer::import("H3K4me1.bed", format ="narrowPeak")
+head(H3K4me1)
+```
+
+```{r}
+H3K27ac <- rtracklayer::import("H3K27ac.bed", format ="narrowPeak")
+head(H3K27ac)
+```
+
+```{r}
+H3K27me3 <- rtracklayer::import("H3K27me3.bed", format ="narrowPeak")
+head(H3K27me3)
+```
+## 2. Proportion of the p300 peaks overlapping each of the marks
+
+```{r}
+peaks_p300 <-length(p300)
+
+overlap_H3K4me3 <- sum(countOverlaps(p300, H3K4me3, type="any"))
+overlap_H3K4me1 <- sum(countOverlaps(p300, H3K4me1, type="any"))
+overlap_H3K27ac <- sum(countOverlaps(p300, H3K27ac, type="any"))
+overlap_H3K27me3 <- sum(countOverlaps(p300, H3K27me3, type="any"))
+
+perc_H3K27ac <- overlap_H3K27ac/peaks_p300*100
+perc_H3K4me1 <- overlap_H3K4me1/peaks_p300*100
+perc_H3K4me3 <- overlap_H3K4me3/peaks_p300*100
+perc_H3K27me3 <- overlap_H3K27me3/peaks_p300*100
+```
+
+
+```{r}
+print(paste("Percentage of p300 peaks overlapping H3K4me3:", perc_H3K4me3, "%"))
+print(paste("Percentage of p300 peaks overlapping H3K4me1:", perc_H3K4me1, "%"))
+print(paste("Percentage of p300 peaks overlapping H3K27ac:", perc_H3K27ac, "%"))
+print(paste("Percentage of p300 peaks overlapping H3K27me3:", perc_H3K27me3, "%"))
+
+```
