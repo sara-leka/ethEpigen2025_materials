@@ -1,0 +1,86 @@
+---
+title: "Assignment week 05"
+author: "Sara Leka"
+date: "2025-03-26"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(ensembldb)
+  library(GenomicRanges)
+  library(epiwraps)
+  library(rtracklayer)
+  library(ggplot2)
+})
+```
+
+## Using data from from mouse embryonic stem cells (mESC)
+
+### Histone modification mark H3K4me3
+```{r, eval=FALSE}
+dir.create("mesc", showWarnings=FALSE)
+download.file("https://www.encodeproject.org/files/ENCFF974BMC/@@download/ENCFF974BMC.bed.gz",dest="H3K4me3.bed.gz")
+```
+
+```{r}
+H3K4me3 <- rtracklayer::import("H3K4me3.bed.gz", format="narrowPeak")
+head(H3K4me3)
+```
+
+### Histone modification mark H3K27me3
+```{r,eval=FALSE}
+download.file("https://www.encodeproject.org/files/ENCFF008XKX/@@download/ENCFF008XKX.bed.gz",dest="H3K27me3.bed.gz")
+```
+```{r}
+H3K27me3 <- rtracklayer::import("H3K27me3.bed.gz", format="narrowPeak")
+head(H3K27me3)
+```
+
+## 1. Bivalent domains identification
+
+```{r}
+overlapping_indices <- findOverlaps(H3K27me3, H3K4me3, type = "any")
+bivalent_regions <- pintersect(H3K27me3[from(overlapping_indices)], H3K4me3[to(overlapping_indices)])
+cat("Number of bivalent regions:", length(bivalent_regions), "\n")
+```
+
+## 2. Behavior upon differentiation
+### Using B cell data
+
+```{r, eval=FALSE}
+download.file("https://www.encodeproject.org/files/ENCFF496DOC/@@download/ENCFF496DOC.bed.gz", "H3K4me3_Bcell.bed.gz")
+download.file("https://www.encodeproject.org/files/ENCFF931RRP/@@download/ENCFF931RRP.bed.gz", "H3K27me3_Bcell.bed.gz")
+```
+```{r}
+B_H3K4me3 <- import("H3K4me3_Bcell.bed.gz", format = "narrowPeak")
+B_H3K27me3 <- import("H3K27me3_Bcell.bed.gz", format = "narrowPeak")
+```
+### Bivalent regions that only overlap with H3K4me3 marks in B cells
+```{r}
+H3K4me3_only <- findOverlaps(bivalent_regions, B_H3K4me3, type = "any")
+length(H3K4me3_only)
+```
+
+### Bivalent regions that only overlap with H3K27me3 marks in B cells
+```{r}
+H3K27me3_only <- findOverlaps(bivalent_regions, B_H3K27me3, type = "any")
+length(H3K27me3_only)
+```
+
+### Bivalent regions that overlap with both marks in B cells
+```{r}
+overlap_B <- findOverlaps(B_H3K4me3, B_H3K27me3, type = "any")
+both_domains_B <- pintersect(B_H3K4me3[from(overlap_B)], B_H3K27me3[to(overlap_B)])
+
+overlap_both <- findOverlaps(bivalent_regions, both_domains_B, type = "any")
+length(overlap_both)
+```
+```{r}
+cat("Bivalent regions that only overlap with H3K4me3 marks in B cells: ", length(H3K4me3_only),
+    "\nBivalent regions that only overlap with H3K27me3 marks in B cells: ", length(H3K27me3_only),
+    "\nBivalent regions that overlapping with the combination of the two marks in B cells: ",  length(overlap_both))
+```
+
+
