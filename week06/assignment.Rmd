@@ -1,0 +1,83 @@
+---
+title: "Assignment Week 06"
+author: "Sara Leka"
+date: "2025-04-02"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(GenomicRanges)
+  library(ggplot2)
+  library(motifmatchr) # for scanning sequences for matches of given motifs
+  library(Biostrings) # for handling sequences
+  library(MotifDb) # database of motifs
+  library(TFBSTools) # for handling some motif formats
+  library(universalmotif) # for converting motifs to various formats
+  library(PWMEnrich) # for R-based motif enrichment analysis
+  library(BSgenome.Mmusculus.UCSC.mm10)
+})
+```
+
+
+## I chose CEBPB TF ChIP-seq data from Mus Musculus myocytes (assembly mm10)
+
+
+### Downloading the peaks for the factor (only chromosome 1 for faster computation)
+```{r}
+download.file("https://www.encodeproject.org/files/ENCFF980ZHP/@@download/ENCFF980ZHP.bed.gz", "Mus_CEBPB_myocytes_ENCFF980ZHP.bed.gz")
+peaks <- rtracklayer::import("Mus_CEBPB_myocytes_ENCFF980ZHP.bed.gz", format="NarrowPeak")
+seqlevelsStyle(peaks) <- "UCSC"
+peaks_chr1 <- peaks[seqnames(peaks)=="chr1"]
+```
+
+### Getting the genome sequence (I actually used BSgenome because I had problems with the genome.fa file)
+```{r, eval=FALSE}
+#ah <- AnnotationHub()
+#AnnotationHub::query(ah, c("mm10", "2bit"))
+
+#AH14005
+
+#genome <- ah[["AH14005"]]
+#genome_seqs <- import(genome)
+```
+
+### Identify the instances of the factor’s motif
+
+```{r}
+motifs <- query(MotifDb, "CEBPB")
+names(motifs)
+
+#Mmusculus-HOCOMOCOv10-CEBPB_MOUSE.H10MO.A
+
+motif <- motifs[["Mmusculus-HOCOMOCOv10-CEBPB_MOUSE.H10MO.A"]]
+view_motifs(motifs[1:2])
+```
+
+### Of all the peaks, what proportion contains a motif for the factor?
+
+
+```{r}
+motif2 <- convert_motifs(motif, class="TFBSTools-PWMatrix")
+moi <- motifmatchr::matchMotifs(motif2, subject=peaks_chr1, genome=BSgenome.Mmusculus.UCSC.mm10,out="positions")
+moi <- moi[[1]]
+head(moi)
+hist(moi$score)
+```
+
+```{r}
+table(overlapsAny(peaks_chr1, moi))
+```
+
+```{r}
+peak_perc <- sum(overlapsAny(peaks_chr1, moi))/length(peaks_chr1)*100
+cat("\nOf the ",length(peaks_chr1)," peaks in chromosome 1, ",sum(overlapsAny(peaks_chr1, moi))," (",peak_perc,"% ) contain a motif for CEBPB")
+```
+
+### Of all instances of that motif in the genome (or in one chromosome), what proportion is bound by the factor (i.e. has a peak)?
+
+```{r}
+motif_perc <- sum(overlapsAny(peaks_chr1, moi))/length(moi)*100
+cat("\nOf the ",length(moi)," motif instances in chromosome 1, ",sum(overlapsAny(peaks_chr1, moi))," (",motif_perc,"% ) have a peak")
+```
