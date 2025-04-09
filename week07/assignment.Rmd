@@ -12,8 +12,8 @@ suppressPackageStartupMessages({
   library(MotifDb)
   library(universalmotif)
   library(ensembldb)
-  library(magick)
-  ah<-AnnotationHub(localHub=TRUE)
+  #library(magick)
+  ah<-AnnotationHub()
 })
 ```
 
@@ -67,7 +67,7 @@ moi_MAZ <- as(setNames(moi_MAZ,names(chr19)), "GRanges")
 ### Plotting results
 
 Signals for KLF4
-```{r, fig.width=8, fig.height=4}
+```{r, fig.width=4, fig.height=4}
 tracks <- c(NF_cuts = "NF_cuts.bw",mono_centers = "mono_centers.bw")
 
 sm_KLF4 <- signal2Matrix(tracks, moi_KLF4, w=5L, extend=300)
@@ -77,7 +77,7 @@ plotEnrichedHeatmaps(sm_KLF4, trim=0.95, multiScale = TRUE, axis_name = "0")
 
 
 Signals for MAZ
-```{r, fig.width=8, fig.height=4}
+```{r, fig.width=4, fig.height=4}
 sm_MAZ <- signal2Matrix(tracks, moi_MAZ, w=5L, extend=300)
 plotEnrichedHeatmaps(sm_MAZ, trim=0.95, multiScale = TRUE, axis_name = "0")
 ```
