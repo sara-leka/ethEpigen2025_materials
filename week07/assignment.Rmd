@@ -1,0 +1,83 @@
+---
+title: "Assignment Week 7"
+author: "Sara Leka"
+date: "2025-04-09"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(epiwraps)
+  library(AnnotationHub)
+  library(MotifDb)
+  library(universalmotif)
+  library(ensembldb)
+  library(magick)
+  ah<-AnnotationHub(localHub=TRUE)
+})
+```
+
+
+### Downloading the data
+```{r, eval=FALSE}
+options(timeout=1800)
+download.file("https://ethz-ins.org/content/w7/atac.chr19.bam", "atac.chr19.bam", mode="wb")
+download.file("https://ethz-ins.org/content/w7/atac.chr19.bam.bai", "atac.chr19.bam.bai", mode="wb")
+```
+
+### Getting the tracks
+```{r}
+bam <- "atac.chr19.bam"
+```
+Creating track using only nucleosome-free fragments, computing coverage
+```{r}
+bam2bw(bam, output_bw = "NF_cuts.bw", paired=TRUE, binWidth=1L, type="ends", minFragLength=30, maxFragLength=120, trim=4L, extend=3L, forceSeqlevelsStyle = "Ensembl")
+```
+Creating track using only the (10bp) centers of mono-nucleosome fragments
+```{r}
+bam2bw(bam, output_bw = "mono_centers.bw", paired=TRUE, binWidth=5L, minFragLength=140, trim=4L,
+       maxFragLength=220, type="center", extend=10L, forceSeqlevelsStyle = "Ensembl")
+```
+
+### Factors of interest: KL4 and MAZ. Here we get the sites with these motifs
+
+Getting the motifs
+```{r}
+motifKLF4 <- MotifDb::query(MotifDb, c("KLF4","Mus"))[[1]]
+motifMAZ <- MotifDb::query(MotifDb, c("MAZ","Mus"))[[1]]
+motifKLF4_conv <- convert_motifs(motifKLF4, class="TFBSTools-PFMatrix")
+motifMAZ_conv <- convert_motifs(motifMAZ, class="TFBSTools-PFMatrix")
+```
+Getting the sequence for chromosome 19
+```{r}
+genome <- ah[["AH68356"]]
+chr19 <- import(genome)["19"]
+```
+Finding motif matches across chromosome 19 for both factors
+```{r}
+moi_KLF4 <- motifmatchr::matchMotifs(motifKLF4_conv, chr19, out="positions", p.cutoff=1e-5)[[1]]
+moi_MAZ <- motifmatchr::matchMotifs(motifMAZ_conv, chr19, out="positions", p.cutoff=1e-5)[[1]]
+```
+Converting to Granges
+```{r}
+moi_KLF4 <- as(setNames(moi_KLF4,names(chr19)), "GRanges")
+moi_MAZ <- as(setNames(moi_MAZ,names(chr19)), "GRanges")
+```
+
+### Plotting results
+
+Signals for KLF4
+```{r, fig.width=8, fig.height=4}
+tracks <- c(NF_cuts = "NF_cuts.bw",mono_centers = "mono_centers.bw")
+
+sm_KLF4 <- signal2Matrix(tracks, moi_KLF4, w=5L, extend=300)
+plotEnrichedHeatmaps(sm_KLF4, trim=0.95, multiScale = TRUE, axis_name = "0")
+```
+
+
+
+Signals for MAZ
+```{r, fig.width=8, fig.height=4}
+sm_MAZ <- signal2Matrix(tracks, moi_MAZ, w=5L, extend=300)
+plotEnrichedHeatmaps(sm_MAZ, trim=0.95, multiScale = TRUE, axis_name = "0")
+```
