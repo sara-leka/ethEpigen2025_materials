@@ -1,0 +1,140 @@
+---
+title: "Assignment week 8"
+author: "Sara Leka"
+date: "2025-04-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+suppressPackageStartupMessages({
+  library(epiwraps)
+  library(motifmatchr)
+  library(MotifDb)
+  library(universalmotif)
+  library(ggplot2)
+  library(SummarizedExperiment) # data structure
+  library(sechm) # for plotting heatmaps from a SummrizedExperiment
+  library(BiocParallel) # for multithreading
+  library(chromVAR) # for motif accessibility estimation
+  library(limma) # for statistical analysis
+  library(AnnotationHub)
+})
+
+register(SnowParam(2))
+```
+
+
+### 1. Downloading ATAC-seq peak counts in the hippocampus upon stress
+```{r}
+download.file("https://ethz-ins.org/content/mouse_mm38_hippocampus.peakCounts.SE.rds", "ATACstress.rds", mode="wb")
+```
+```{r}
+se <- readRDS("ATACstress.rds")
+head(se)
+```
+### Getting the database motifs
+```{r}
+motifs <- MotifDb::query(MotifDb, c("HOCOMOCOv10", "Mmusculus"))
+motifs <- do.call(TFBSTools::PWMatrixList, setNames(
+           universalmotif::convert_motifs(motifs, class="TFBSTools-PWMatrix"),
+           mcols(motifs)$geneSymbol))
+motifs <- motifs[unique(names(motifs))]
+```
+
+### Getting the genome
+```{r}
+ah <- AnnotationHub()
+genome <- ah[["AH68356"]]
+genome_seqs <- import(genome)
+```
+### Preparing the SummarizedExperiment object for downstream analysis
+
+```{r}
+# Can use granges operation
+colData(se)$condition <- c("CTRL","CTRL","CTRL","CTRL","CTRL","CTRL","FSS","FSS","FSS","FSS","FSS","FSS")
+colData(se)$sex <- c("F","F","F","M","M","M","F","F","F","M","M","M")
+row.names(se) <- as.character(granges(se))
+```
+
+```{r}
+# Adding GC bias
+se <- chromVAR::addGCBias(se, genome=genome_seqs)
+hist(rowData(se)$bias) # most have 50%, pretty symmetric distribution
+```
+```{r}
+# Finding which peaks contain which motif
+moi <- motifmatchr::matchMotifs(motifs, subject=se, genome=genome_seqs)
+head(assay(moi))
+```
+
+```{r}
+# Ensuring reproducibility and getting background peaks
+set.seed(1234)
+bg <- chromVAR::getBackgroundPeaks(se, niterations=500)
+dev <- chromVAR::computeDeviations(object = se, annotations=moi, background_peaks=bg)
+```
+## 2. Differential analysis
+### a. FSS vs CTRL
+
+```{r}
+dev$condition <- factor(dev$condition)
+dev$condition <- relevel(dev$condition, "CTRL") 
+
+mm_conditions <- model.matrix(~condition, data=as.data.frame(colData(dev)))
+head(mm_conditions)
+```
+```{r}
+fit_conditions <- limma::eBayes(limma::lmFit(object = assays(dev)$z, design = mm_conditions))
+res_conditions <- as.data.frame(limma::topTable(fit_conditions, coef="conditionFSS", number = Inf))
+res_conditions$TF <- row.names(res_conditions)
+head(res_conditions)
+```
+
+Finding relevant motifs
+```{r}
+ggplot(res_conditions, aes(logFC, -log10(adj.P.Val), label=TF)) + geom_text()
+```
+
+Heatmap
+```{r}
+metadata(dev)$anno_colors <- list(sex=c(M="lightgrey", F="darkred"), condition=c(CTRL="darkblue", FSS="pink"))
+sechm::sechm(dev, features = head(row.names(res_conditions)), assayName="z", top_annotation = c("condition", "sex"))
+```
+
+### b. Male vs Female
+
+```{r}
+dev$sex <- factor(dev$sex)
+dev$sex <- relevel(dev$sex, "M")
+
+mm_sex <- model.matrix(~sex, data=as.data.frame(colData(dev)))
+head(mm_sex)
+```
+
+```{r}
+fit_sex <- limma::eBayes(limma::lmFit(object = assays(dev)$z, design = mm_sex))
+res_sex <- as.data.frame(limma::topTable(fit_sex, coef="sexF", number = Inf))
+res_sex$TF <- row.names(res_sex)
+head(res_sex)
+```
+
+```{r}
+ggplot(res_sex, aes(logFC, -log10(adj.P.Val), label=TF)) + geom_text()
+```
+
+```{r}
+metadata(dev)$anno_colors <- list(sex=c(M="lightgrey", F="darkred"), condition=c(CTRL="darkblue", FSS="pink"))
+sechm::sechm(dev, features = head(row.names(res_sex)), cluster_cols=TRUE, assayName="z", top_annotation = c("condition", "sex"))
+```
+
+## 3. Interpretation
+
+### a. FSS vs CTRL
+The plots show a significant difference in accessibility for motifs ANDR, GCR and PRGR. These motifs show more peaks overlapping them in FSS animals when comparing with the control animals, suggesting they play a role in stress response. Also in the heatmap the most evident difference is only visible for ANDR, GCR and PRGR. For them there is a visible enrichment (yellow squares). Other motifs like MEF2A and MSX2 also show some difference in enrichment in the 2 maps but much less sharp thant the 3 "top" motifs.
+
+### b. Male vs Female
+Factors like TYY1, TEAD1, ZN143 seem to show a sharp difference in enrichment in female animals compared to male ones. However, also other factors like RUNX3, PTF1A, and MYB do show this higher enrichment in females than in males but with less evident differences. For all these motifs there are then probably sex-specific differences in motif accessibility.
