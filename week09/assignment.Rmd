@@ -1,0 +1,33 @@
+---
+title: "Assignment week 09"
+author: "Sara Leka"
+date: "2025-05-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Project proposal
+
+## **Team:** Julia Frank, Sara Leka and Jesslyn Jesslyn
+
+
+
+### 1. What is the topic?
+
+We aim to reproduce the analysis from the study *Application of ATAC-Seq for genome-wide analysis of the chromatin state at single myofiber resolution* (Sahinyan et al., 2022), which used smfATAC-seq to compare chromatin accessibility in dystrophic (mdx) and wild-type (WT) mouse myofibers. The mdx mouse is a model for Duchenne Muscular Dystrophy (DMD), a disease marked by progressive muscle degeneration. The study reported distinct accessibility patterns, with mdx associated with muscle structure and WT with metabolic processes. Using computational methods learned in this course, we aim to validate these findings.
+
+### 2. What data will you be using?
+
+We plan to use the already preprocessed bigWig files, which provide normalized genome-wide signal coverage tracks. However, the raw sequencing data is also available if needed.
+
+### 3. What are the analysis you wish to reproduce or the questions you wish to answer?
+
+We will focus solely on the comparison between mdx and WT myofibers, excluding the analysis of injured versus uninjured fibers. We aim to identify overlapping and unique accessible regions between the two conditions, followed by a differential accessibility analysis. Additionally, we plan to conduct gene set and motif enrichment analyses.
+
+### Links:
+
+The paper: <https://pmc.ncbi.nlm.nih.gov/articles/PMC8901173/#abstract1>\
+The data: <https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE173676>
