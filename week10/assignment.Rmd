@@ -1,0 +1,113 @@
+---
+title: "Assignment Week 10"
+author: "Sara Leka"
+date: "2025-05-14"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(GenomicRanges)
+  library(epiwraps)
+  library(ggplot2)
+  library(rGREAT) # Gene Ontology enrichment among genomic regions
+})
+```
+
+
+## 1. Download and decompress archive containing bigwig files and peaks (bed) files for three TFs of the CREB family (restricted to chr1 and aligned against the hg38 genome)
+```{r, eval=FALSE}
+options(timeout = 6000)
+download.file("https://ethz-ins.org/content/w10.assignment.zip", "w10.assignment.zip")
+unzip("w10.assignment.zip")
+list.files()
+```
+
+
+## 2. Clustering and visualization to illustrate the relationship between the binding of the different proteins
+
+First, prepare regions and tracks
+
+```{r}
+tracks <- list.files(pattern="bw$")
+peaks <- list.files(pattern="bed$")
+# we first import the peaks
+peaks <- lapply(peaks, rtracklayer::import.bed)
+ # we'll focus on the high-quality peaks
+peaks <- lapply(peaks, FUN=function(x) x[x$score>800])
+# we get the union of non-redundant regions
+regions <- reduce(unlist(GRangesList(peaks)))
+```
+
+
+Plotting before clusters
+
+```{r}
+set.seed(123)
+ese <- signal2Matrix(tracks, regions, extend=2000)
+plotEnrichedHeatmaps(ese)
+```
+
+```{r}
+# What k to use?
+cl <- clusterSignalMatrices(ese, k=2:10, scaleRows = TRUE)
+ggplot(cl$varExplained, aes(k, varExplained)) + geom_line() 
+```
+
+Clustering 
+
+```{r}
+cl <- clusterSignalMatrices(ese, k=4, scaleRows=TRUE)
+rowData(ese)$cluster <- cl
+```
+
+Plot clusters:
+```{r}
+mycolors <- c("1"="red", "2"="blue", "3"="green", "4"="purple")
+plotEnrichedHeatmaps(ese, row_split="cluster", mean_color=mycolors, scale_rows = "global")
+```
+### Result comments
+
+After evaluating the percentage of variance explained by the possible number of clusters, a clustering with k=4 was performed.
+Cluster 1 (red) shows a strong signal for Creb1 with very weak signal for the other TFs, suggesting a regulation dominated by Creb1.
+Cluster 2 (blue) on the other hand shows strong peak signal for Creb3 in comparison to the other 2 weak signals in this region.
+Cluster 3 (green) and cluster 4 (purple) display a strong Creb3L1 signal with noisy weak signal from the other TFs in cluster 3. However, there is a relevant presence form Creb1 in cluster 4 (compared to the absence of Creb3), suggesting potential co-binding of Creb3L1 and Creb1 in this region.
+
+In general there seem to be some overlapping binding preferences (cluster 4 for Creb1 and Creb3L1) and some distinct ones (clearly cluster 1 for Creb1) in the CREB-family transcription factors.
+
+## 3. Enrichment analysis with Gene Ontology and Biological Processes
+
+```{r}
+split_regions <- split(rowRanges(ese), rowData(ese)$cluster)
+lengths(split_regions)
+
+res <- great(split_regions[["4"]], gene_sets="GO:BP", tss_source="hg38", 
+             background=regions, cores=2)
+bp <- getEnrichmentTables(res)
+```
+
+```{r, fig.width=9, fig.height=6}
+ggplot(head(bp, 15), aes(
+  fold_enrichment,
+  reorder(description, p_adjust),
+  size = observed_region_hits,
+  color = -log10(p_adjust)
+)) +
+  geom_point() +
+  scale_color_viridis_c() +
+  labs(
+    x = "Fold Enrichment",
+    y = "GO Term",
+    title = "GO:BP Cluster 4"
+  )
+```
+
+
+### Result comments
+
+Since cluster 4 showed a potential co-regulation from Creb1 and Creb3L1, a GO enrichment analysis was performed to understand better what biological processes are potentially regulated in these regions. 
+To judge the most meaningful terms fold enrichment, region hits, and p-value must all be taken into account.
+High region hits are observed in microtubule cytoskeleton and chromosome organisation but higher fold enrichment (with however lower, but still relevant, hits) is shown regulation of protein stability and protein stabilization.Despite some correlation with protein staibility regulation and cell organization, this analysis does not show a very clear association with specific functions but still gives some idea.   
+
+
+"
