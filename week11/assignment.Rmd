@@ -1,0 +1,80 @@
+---
+title: "Assignment Week 11"
+author: "Sara Leka"
+date: "2025-05-21"
+output: html_document
+---
+
+```{r setup}
+suppressPackageStartupMessages({
+  library(epiwraps)
+  library(ggplot2)
+  library(AnnotationHub)
+  library(ensembldb)
+  library(edgeR)
+  library(rtracklayer)
+  library(BiocParallel)
+  library(bsseq)   # Class and tools to analyze bisulfite sequencing data at CpG-level
+  library(DMRcate) # Identification of differentially-methylated regions
+  library(rGREAT)
+})
+
+dmrs <- readRDS("dmr.rds")
+bs <- readRDS("ESC_astrocytes_BSseq.rds")
+```
+
+## 1. Plot a heatmap of the methylation levels of the genes in top 20 (and 5) DMR regions located on chr1
+
+```{r, warning=FALSE, message=FALSE}
+dmrs_chr1 <- dmrs[which(seqnames(dmrs)=="chr1")]
+ordered_chr1 <- dmrs_chr1[order(mcols(dmrs_chr1)$meandiff, decreasing = TRUE)]
+
+
+# Removing CpGs with 0 coverage in some samples
+bs <- bs[rowSums(assay(bs,"Cov") > 0) == ncol(bs), ]
+bs <- BSmooth(bs, BPPARAM = MulticoreParam(4))
+
+meth_top20 <- getMeth(bs, regions = ordered_chr1[1:20], what = "perRegion")
+rownames(meth_top20) <- paste0("DMR_", seq_len(nrow(meth_top20)))
+colnames(meth_top20) <- colnames(bs)
+meth_top20
+
+meth_top5 <- getMeth(bs, regions = ordered_chr1[1:5], what = "perRegion")
+rownames(meth_top5) <- paste0("DMR_", seq_len(nrow(meth_top5)))
+colnames(meth_top5) <- colnames(bs)
+meth_top5
+```
+
+```{r}
+pheatmap(meth_top20, name="methylation_top20", cellwidth = 25, cellheight = 8,    )
+pheatmap(meth_top5, name="methylation_top5")
+```
+
+
+## Enrichment analysis (rGREAT) of the significant DMRs from the practical vs the entire genome
+
+```{r}
+## 2. Enrichment Analysis of Significant DMRs
+
+res <- great(dmrs, gene_sets = "GO:BP", tss_source = "hg19", cores = 2)
+
+bp <- getEnrichmentTables(res)
+head(bp)
+
+ggplot(head(bp,15), aes(fold_enrichment, reorder(description, p_adjust),
+                        size=observed_region_hits, color= -log10(p_adjust)))+
+  geom_point()+scale_color_viridis_b()
+```
+
+This enrichment analysis compares the genes in the Differentially Methylated Regions to all the genome (that is the background in this case) based on Biological Processes from Gene Ontology.
+
+This enrichment plot highlights the top biological processes associated with the significant DMRs. Many of the enriched termssuch as "transcription by RNA polymerase II" and "regulation of transcription" are broad and fundamental cellular processes rather than specific to cell type identity or function. This may suggest that the DMRs affect general transcriptional regulation rather than highly cell-type-specific pathways. Additionally, terms like "response to fructose" or "collecting duct development" are unexpected in the astrocyte vs. ESC context, further pointing to possible enrichment biases due to regional or chromosomal distribution of genes, rather than reflecting functional changes specific to the cell types compared.
+
+
+
+
+
+
+
+
+
